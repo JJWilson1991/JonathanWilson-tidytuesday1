@@ -1,0 +1,169 @@
+---
+title: "JonathanWilson-TidyTuesday1"
+author: "JJWilson"
+date: "01/10/2019"
+output: html_document
+---
+```{r}
+#Load packages needed for wrangling
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(zipcode)
+library(janitor)
+data(zipcode)
+```
+```{r}
+#Obtain data for tidy tuesday on pizza
+
+
+
+pizza_jared <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-01/pizza_jared.csv")
+pizza_barstool <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-01/pizza_barstool.csv")
+pizza_datafiniti <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-01/pizza_datafiniti.csv")
+
+```
+```{r}
+p1 <- pizza_barstool
+p2 <- pizza_datafiniti
+p3 <- pizza_jared
+```
+```{r}
+glimpse(p1)
+
+```
+```{r}
+glimpse(p2)
+```
+```{r}
+glimpse(p3)
+```
+# Glimpsing at the data, the second set contains by far the most observations, but only price and location data, might be useful for plotting areas for more expensive pizza?
+# Set 1 has the most in depth ratings it appears, whereas set 3 is categorical rating at good, excellent etc.
+```{r}
+# look at city data from p2
+
+
+
+
+unique(p2$city)
+```
+# Way too many cities to deal with here
+# Lets look at state, in this case labeled province to see if all are represented.
+```{r}
+unique(p2$province)
+```
+# 44 states represented which is quite good, but interesting that some aren't as I'm quite sure every state has pizza, maybe some states just don't have any worth eating?
+# Lets see which states are most represented.
+```{r}
+numberperstate <- table(p2$province)
+
+numberperstate
+
+```
+# Seeing as I'm new to GA, lets have a play with the GA data. maybe there is pizza worth eating in Athens?
+## Although another interesting number is that New Jersey apparently only has 4 observations, possibly because people enter New york as the city observation when they're in the New york Metro area which then fills the state in as NY even if a large part of the Metro is in NJ?
+
+```{r}
+GApizza <- p2 %>% filter(province == "GA")
+
+```
+# GA is pretty well represented in the second data set with 214 observations, what about Athens?
+
+```{r}
+Athens <- GApizza %>% filter(city == "Athens")
+
+```
+# Oh... well we only have 2 observations for Athens so thats a bit of a dead end...
+# Lets move on and plot the reviews from data set 1 on a map.
+# We'll clean it up to remove any reviews without latitude and longitude values.
+
+```{r}
+
+p1clean = p1 %>%
+  filter(!is.na(longitude)) 
+usa <- map_data("usa") 
+ggplot() + geom_polygon(data = usa, aes(x=long, y = lat, group = group), fill = NA, color = "black") +     coord_fixed(1.3) +  geom_point(data = p1clean, aes(x = longitude, y = latitude),   color = "blue", alpha = 0.25, size = 2)
+usa
+```
+# From this quick map of the second data set we see the majority of observations are around NYC.  
+# Lets rank the number of reviews per city.
+```{r}
+pizzacity = p1clean %>% 
+
+  group_by(city) %>%
+
+  summarize(num_per_city = n()) %>%
+
+  arrange(desc(num_per_city))
+
+
+
+pizzacity
+```
+# I wonder if there are any general trends in ratings relating to latitude and longitude...
+```{r}
+ p1clean %>% ggplot(aes(review_stats_all_average_score, longitude)) + geom_point() + geom_smooth(method = "lm")
+
+```
+```{r}
+ p1clean %>% ggplot(aes(review_stats_all_average_score, latitude)) + geom_point() +geom_smooth(method = "lm")
+
+```
+# In both cases the data from NYC is overwhelming everything else, so lets remove the NYC data and see if anything emerges.
+# Its becoming clear that the data roughly splits into 2 groups, New york and everywhere else, so I guess the options are to focus on one or the other or compare them.
+```{r}
+notny <- p1clean %>% filter(city != "New York")
+notny %>% ggplot(aes(review_stats_all_average_score, latitude)) + geom_point() +geom_smooth(method = "lm")
+```
+```{r}
+notny %>% ggplot(aes(review_stats_all_average_score, longitude)) + geom_point() +geom_smooth(method = "lm")
+```
+# There appears to be a reasonable trend between longitude and increased ratings now, suggesting locations on the east coast are generally getting higher ratings.
+# Lets plot ratings of New York vs "Everybody Else".
+
+```{r}
+NYC1 = p1clean %>%
+
+  filter(city == "New York")
+
+NYC1
+```
+```{r}
+vNYC1 <- NYC1 %>% ggplot(aes(x=city, y=review_stats_all_average_score)) + geom_violin() + geom_point()
+vNYC1
+
+```
+```{r}
+NYC1mean = p1clean %>%
+
+  filter(city == "New York") %>%
+
+  summarize(score = mean(review_stats_all_average_score))
+
+NYC1mean
+```
+```{r}
+NNYC1mean = p1clean %>%
+
+  filter(city != "New York") %>%
+
+  summarize(score = mean(review_stats_all_average_score))
+
+NNYC1mean
+```
+# Just looking at the means, the non NYC has a higher mean rating.
+# Lets create a new column with just a true or false for NYC...
+```{r}
+NYCCLEAN <- p1clean %>% mutate(NewYork = city == "New York")
+glimpse(NYCCLEAN)
+```
+# Now lets plot our rating ditribution of NYC vs eveyone else with violin ploys and add our mean rating on there
+```{r}
+VSNYC1 <- NYCCLEAN %>% ggplot(aes(x=NewYork, y=review_stats_all_average_score)) + geom_violin() + geom_point() + stat_summary(fun.y=mean, geom="point", shape=23, size=3, color= "red", fill="red")
+VSNYC1
+
+```
+# Looking at our two nice sting rays here it looks like not NYC is winning, but this could be due to NYC being heavily sampled across a whole range of pizza places but the reviewers may be more likely to sample somehwere with a reputation for good pizza outside of the Big Apple.
